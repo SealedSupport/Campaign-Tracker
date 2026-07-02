@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Sealed — Campaign Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#1c2430;
+    --ink-soft:#5b6472;
+    --paper:#f7f6f2;
+    --card:#ffffff;
+    --line:#e4e1d8;
+    --navy:#132744;
+    --navy-soft:#1e3d70;
+    --brass:#a9812f;
+    --brass-soft:#f1e4c3;
+    --live:#3f7a52;
+    --live-bg:#e6f0e8;
+    --pending:#b3701c;
+    --pending-bg:#f7ead4;
+    --closed:#6b7280;
+    --closed-bg:#eceeef;
+    --danger:#a13f3f;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Inter',sans-serif;min-height:100vh;}
+  .topbar{background:var(--navy);color:#fff;padding:22px 32px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+  .brand{display:flex;flex-direction:column;gap:2px;}
+  .brand .eyebrow{font-family:'JetBrains Mono',monospace;font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--brass-soft);}
+  .brand h1{font-family:'Fraunces',serif;font-weight:500;font-size:26px;margin:0;letter-spacing:.01em;}
+  .sync-row{display:flex;align-items:center;gap:14px;flex-wrap:wrap;}
+  .sync-status{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#cbd3e0;}
+  .sync-status.err{color:#f3b8b8;}
+  button.primary{background:var(--brass);color:#241a04;border:none;padding:10px 18px;border-radius:8px;font-weight:600;font-size:13.5px;cursor:pointer;display:flex;align-items:center;gap:8px;}
+  button.primary:hover{background:#c0983b;}
+  button.primary:disabled{opacity:.6;cursor:wait;}
+  button.ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.35);padding:10px 16px;border-radius:8px;font-size:13.5px;cursor:pointer;}
+  button.ghost:hover{border-color:#fff;}
+  .spinner{width:13px;height:13px;border-radius:50%;border:2px solid rgba(0,0,0,.25);border-top-color:#241a04;animation:spin .7s linear infinite;display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .controls{max-width:1240px;margin:0 auto;padding:24px 32px 0;display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+  .search{flex:1;min-width:220px;padding:10px 14px;border:1px solid var(--line);border-radius:8px;font-size:14px;background:#fff;}
+  .filter-chip{border:1px solid var(--line);background:#fff;padding:8px 14px;border-radius:20px;font-size:12.5px;font-weight:600;cursor:pointer;color:var(--ink-soft);}
+  .filter-chip.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+
+  .board{max-width:1240px;margin:0 auto;padding:20px 32px 60px;display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:16px;}
+  .tile{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px 18px 16px;cursor:pointer;transition:box-shadow .15s ease, transform .15s ease;display:flex;flex-direction:column;gap:10px;position:relative;}
+  .tile:hover{box-shadow:0 8px 22px rgba(28,36,48,.08);transform:translateY(-2px);}
+  .tile .pname{font-family:'Fraunces',serif;font-size:18px;font-weight:500;line-height:1.25;padding-right:80px;}
+  .badge{position:absolute;top:16px;right:16px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 9px;border-radius:20px;}
+  .badge.live{background:var(--live-bg);color:var(--live);}
+  .badge.pending{background:var(--pending-bg);color:var(--pending);}
+  .badge.closed{background:var(--closed-bg);color:var(--closed);}
+  .badge.other{background:var(--brass-soft);color:#6b501c;}
+  .tile-meta{font-size:12.5px;color:var(--ink-soft);display:flex;flex-direction:column;gap:4px;}
+  .tile-meta span b{color:var(--ink);font-weight:600;}
+  .tile-meta span.overridden::after{content:" ✎";color:var(--brass);}
+  .bar{height:5px;background:var(--line);border-radius:4px;overflow:hidden;}
+  .bar-fill{height:100%;background:var(--brass);}
+  .progress-label{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-soft);margin-top:5px;}
+
+  .empty{max-width:1240px;margin:60px auto;padding:0 32px;text-align:center;color:var(--ink-soft);}
+  .empty h2{font-family:'Fraunces',serif;color:var(--ink);font-weight:500;}
+  .empty code{background:#efece3;padding:2px 6px;border-radius:4px;font-size:12.5px;}
+
+  .overlay{position:fixed;inset:0;background:rgba(20,24,32,.5);display:none;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;z-index:50;}
+  .overlay.show{display:flex;}
+  .modal{background:var(--card);border-radius:14px;width:100%;max-width:780px;box-shadow:0 20px 60px rgba(0,0,0,.25);overflow:hidden;}
+  .modal-head{background:var(--navy);color:#fff;padding:22px 26px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
+  .modal-head h2{font-family:'Fraunces',serif;font-weight:500;font-size:22px;margin:0 0 4px;}
+  .modal-head .sub{font-size:12.5px;color:#c6ccd8;}
+  .close-x{background:none;border:none;color:#fff;font-size:20px;cursor:pointer;line-height:1;opacity:.75;}
+  .close-x:hover{opacity:1;}
+  .tabs{display:flex;border-bottom:1px solid var(--line);background:#fbfaf7;}
+  .tab{flex:1;padding:13px 10px;text-align:center;font-size:13px;font-weight:600;color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;}
+  .tab.active{color:var(--navy);border-bottom-color:var(--brass);background:#fff;}
+  .tab-panel{padding:22px 26px 26px;display:none;max-height:62vh;overflow-y:auto;}
+  .tab-panel.active{display:block;}
+
+  .field-table{width:100%;border-collapse:collapse;}
+  .field-table th{text-align:left;font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);padding:0 0 8px;font-weight:600;}
+  .field-table th.mcol{width:44%;}
+  .field-table th.ocol{width:44%;}
+  .field-table td{padding:8px 0;border-bottom:1px solid #f0eee7;vertical-align:middle;}
+  .field-table td.flabel{font-size:12.5px;color:var(--ink-soft);font-weight:500;width:130px;}
+  .field-table td.fmonday{font-size:13.5px;color:var(--ink);padding-right:14px;}
+  .field-table td.foverride input{border:1px solid var(--line);border-radius:6px;padding:7px 10px;font-size:13.5px;font-family:'Inter',sans-serif;width:100%;}
+  .field-table td.foverride input:not(:placeholder-shown){border-color:var(--brass);background:#fffdf6;}
+  .legend{font-size:11px;color:var(--ink-soft);margin-bottom:12px;}
+  .legend b{color:var(--brass);}
+
+  textarea.notes-box{width:100%;min-height:220px;border:1px solid var(--line);border-radius:8px;padding:14px;font-size:14px;font-family:'Inter',sans-serif;resize:vertical;line-height:1.5;}
+  .checklist-item{display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid #f0eee7;}
+  .checklist-item input[type=checkbox]{width:17px;height:17px;accent-color:var(--brass);cursor:pointer;}
+  .checklist-item span{font-size:14px;}
+  .checklist-item.done span{color:var(--ink-soft);text-decoration:line-through;}
+  .field-group-title{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);margin:16px 0 8px;}
+  .field-group-title:first-child{margin-top:0;}
+  .checklist-progress{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-soft);margin-bottom:8px;}
+  .save-note{font-size:11px;color:var(--ink-soft);margin-top:12px;font-style:italic;}
+  .err-banner{max-width:1240px;margin:16px auto 0;padding:0 32px;}
+  .err-banner .box{background:#fbeaea;border:1px solid #eac6c6;color:var(--danger);padding:12px 16px;border-radius:8px;font-size:13px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="eyebrow">Sealed Real Estate</div>
+    <h1>Campaign Tracker</h1>
+  </div>
+  <div class="sync-row">
+    <span class="sync-status" id="syncStatus">Not connected</span>
+    <button class="ghost" id="checklistSyncBtn">Sync checklist template</button>
+    <button class="primary" id="syncBtn">Connect / sync monday.com</button>
+  </div>
+</div>
+
+<div class="err-banner" id="errBanner" style="display:none;"><div class="box" id="errBox"></div></div>
+
+<div class="controls">
+  <input class="search" id="searchInput" placeholder="Search by property, vendor, contact…">
+  <div class="filter-chip active" data-filter="all">All</div>
+  <div class="filter-chip" data-filter="live">Live</div>
+  <div class="filter-chip" data-filter="pending">Pending</div>
+  <div class="filter-chip" data-filter="closed">Closed</div>
+</div>
+
+<div class="board" id="board"></div>
+
+<div class="empty" id="emptyState" style="display:none;">
+  <h2>No campaigns yet</h2>
+  <p>Click <code>Connect / sync monday.com</code> above and paste your monday.com API token to pull in the campaign board.</p>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div><h2 id="modalTitle">Property</h2><div class="sub" id="modalSub">Status</div></div>
+      <button class="close-x" id="closeModal">✕</button>
+    </div>
+    <div class="tabs">
+      <div class="tab active" data-tab="details">Campaign Details</div>
+      <div class="tab" data-tab="notes">Important Notes</div>
+      <div class="tab" data-tab="checklist">Checklist</div>
+    </div>
+    <div class="tab-panel active" id="panel-details"></div>
+    <div class="tab-panel" id="panel-notes"></div>
+    <div class="tab-panel" id="panel-checklist"></div>
+  </div>
+</div>
+
+<script>
+const MONDAY_BOARD_ID = "1949978416";
+const CHECKLIST_BOARD_ID = "5026745029";
+const TOKEN_KEY = "sealed_tracker_monday_token";
+const STATE_KEY = "sealed_tracker_state";
+
+const FIELDS = [
+  {key:"campaignStatus", label:"Campaign Status", kw:["campaign status","status"]},
+  {key:"saleType", label:"Sale Type", kw:["sale type"]},
+  {key:"auctionDate", label:"Auction Date", kw:["auction date","auction"]},
+  {key:"launchDate", label:"Launch Date", kw:["launch date","launch"]},
+  {key:"vendorName", label:"Vendor Name", kw:["vendor name"]},
+  {key:"contact", label:"Contact", kw:["contact"]},
+  {key:"email", label:"Email", kw:["email"]},
+  {key:"conveyancer", label:"Conveyancer", kw:["conveyancer"]},
+  {key:"preferredOpenhome", label:"Preferred Openhome", kw:["preferred openhome","open home","openhome"]},
+  {key:"vendorMeeting", label:"Vendor Meeting", kw:["vendor meeting"]},
+];
+
+let TOKEN = localStorage.getItem(TOKEN_KEY) || "";
+let state = { campaigns: [], checklistTemplate: [] };
+let activeCampaignId = null;
+let currentFilter = "all";
+
+function uid(){ return Math.random().toString(36).slice(2,10); }
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STATE_KEY);
+    if(raw) state = JSON.parse(raw);
+  }catch(e){ /* fresh start */ }
+  render();
+}
+function saveState(){
+  try{ localStorage.setItem(STATE_KEY, JSON.stringify(state)); }
+  catch(e){ console.error("save failed", e); }
+}
+
+function statusClass(status){
+  const s = (status||"").toLowerCase();
+  if(s.includes("live") || s.includes("active") || s.includes("campaign")) return "live";
+  if(s.includes("pending") || s.includes("upcoming") || s.includes("prep")) return "pending";
+  if(s.includes("closed") || s.includes("sold") || s.includes("complete") || s.includes("settled")) return "closed";
+  return "other";
+}
+function getField(c, key){
+  if(c.overrides && c.overrides[key] !== undefined && c.overrides[key] !== "") return c.overrides[key];
+  return (c.monday && c.monday[key]) || "";
+}
+function isOverridden(c, key){
+  return !!(c.overrides && c.overrides[key] !== undefined && c.overrides[key] !== "");
+}
+function checklistProgress(c){
+  const items = c.checklist || [];
+  if(items.length === 0) return {done:0, total:0};
+  return {done: items.filter(i=>i.done).length, total: items.length};
+}
+function setSyncStatus(text, isErr){
+  const el = document.getElementById('syncStatus');
+  el.textContent = text;
+  el.classList.toggle('err', !!isErr);
+}
+function showError(msg){
+  const banner = document.getElementById('errBanner');
+  const box = document.getElementById('errBox');
+  if(!msg){ banner.style.display='none'; return; }
+  box.textContent = msg;
+  banner.style.display='block';
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+/* ---------- Rendering ---------- */
+
+function render(){
+  const board = document.getElementById('board');
+  const empty = document.getElementById('emptyState');
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+
+  let list = state.campaigns.slice();
+  if(currentFilter !== "all") list = list.filter(c => statusClass(getField(c,'campaignStatus')) === currentFilter);
+  if(q){
+    list = list.filter(c=>{
+      const hay = [getField(c,'vendorName'), getField(c,'contact'), c.monday.propertyName].join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  }
+
+  board.innerHTML = "";
+  empty.style.display = list.length ? "none" : "block";
+
+  list.forEach(c=>{
+    const status = getField(c,'campaignStatus') || "—";
+    const sc = statusClass(status);
+    const prog = checklistProgress(c);
+    const pct = prog.total ? Math.round(prog.done/prog.total*100) : 0;
+
+    const tile = document.createElement('div');
+    tile.className = 'tile';
+    tile.innerHTML = `
+      <span class="badge ${sc}">${escapeHtml(status)}</span>
+      <div class="pname">${escapeHtml(c.monday.propertyName || 'Untitled property')}</div>
+      <div class="tile-meta">
+        <span class="${isOverridden(c,'vendorName')?'overridden':''}"><b>Vendor:</b> ${escapeHtml(getField(c,'vendorName')||'—')}</span>
+        <span class="${isOverridden(c,'auctionDate')?'overridden':''}"><b>Auction:</b> ${escapeHtml(getField(c,'auctionDate')||'—')}</span>
+      </div>
+      <div class="tile-progress">
+        <div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>
+        <div class="progress-label">CHECKLIST ${prog.done}/${prog.total}</div>
+      </div>
+    `;
+    tile.addEventListener('click', ()=>openModal(c.id));
+    board.appendChild(tile);
+  });
+}
+
+/* ---------- Modal ---------- */
+
+function openModal(id){
+  activeCampaignId = id;
+  const c = state.campaigns.find(x=>x.id===id);
+  if(!c) return;
+
+  document.getElementById('modalTitle').textContent = c.monday.propertyName || 'Untitled property';
+  document.getElementById('modalSub').textContent = getField(c,'campaignStatus') || '—';
+
+  renderDetailsTab(c);
+  renderNotesTab(c);
+  renderChecklistTab(c);
+
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('.tab[data-tab="details"]').classList.add('active');
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('panel-details').classList.add('active');
+
+  document.getElementById('overlay').classList.add('show');
+}
+function closeModal(){
+  document.getElementById('overlay').classList.remove('show');
+  activeCampaignId = null;
+}
+
+function renderDetailsTab(c){
+  const panel = document.getElementById('panel-details');
+  let html = `<div class="legend">Left column is what's live on monday.com right now. Type in the right-hand cell any time something changes on your end — <b>your entry always wins</b> on the tile and here, until you clear it.</div>`;
+  html += `<table class="field-table"><tr><th></th><th class="mcol">From monday.com</th><th class="ocol">Updated by you</th></tr>`;
+  FIELDS.forEach(f=>{
+    const mval = c.monday[f.key] || "—";
+    const oval = (c.overrides && c.overrides[f.key]) || "";
+    html += `<tr>
+      <td class="flabel">${f.label}</td>
+      <td class="fmonday">${escapeHtml(mval)}</td>
+      <td class="foverride"><input type="text" data-override="${f.key}" value="${escapeHtml(oval)}" placeholder="No change"></td>
+    </tr>`;
+  });
+  html += `</table>`;
+  html += `<div class="save-note">Changes save automatically in this browser.</div>`;
+  panel.innerHTML = html;
+
+  panel.querySelectorAll('input[data-override]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const c2 = state.campaigns.find(x=>x.id===activeCampaignId);
+      if(!c2.overrides) c2.overrides = {};
+      c2.overrides[inp.dataset.override] = inp.value;
+      saveState();
+      render();
+    });
+  });
+}
+
+function renderNotesTab(c){
+  const panel = document.getElementById('panel-notes');
+  panel.innerHTML = `
+    <div class="field-group-title">General notes for this campaign</div>
+    <textarea class="notes-box" id="notesBox" placeholder="Write anything worth remembering about this campaign…">${escapeHtml(c.importantNotes||"")}</textarea>
+    <div class="save-note">Saves automatically as you type.</div>
+  `;
+  let t;
+  document.getElementById('notesBox').addEventListener('input', (e)=>{
+    clearTimeout(t);
+    t = setTimeout(()=>{
+      const c2 = state.campaigns.find(x=>x.id===activeCampaignId);
+      c2.importantNotes = e.target.value;
+      saveState();
+    }, 400);
+  });
+}
+
+function renderChecklistTab(c){
+  const panel = document.getElementById('panel-checklist');
+  if(!c.checklist) c.checklist = [];
+  if(c.checklist.length === 0 && state.checklistTemplate.length){
+    c.checklist = state.checklistTemplate.map(t=>({id:uid(), text:t.text, group:t.group||"", done:false}));
+    saveState();
+  }
+  const prog = checklistProgress(c);
+  let html = `<div class="checklist-progress">${prog.done} of ${prog.total} complete</div>`;
+  if(c.checklist.length === 0){
+    html += `<p style="color:var(--ink-soft);font-size:13.5px;">No checklist template loaded yet. Click "Sync checklist template" at the top, then reopen this campaign.</p>`;
+  } else {
+    let lastGroup = null;
+    c.checklist.forEach(item=>{
+      if(item.group && item.group !== lastGroup){
+        html += `<div class="field-group-title">${escapeHtml(item.group)}</div>`;
+        lastGroup = item.group;
+      }
+      html += `<div class="checklist-item ${item.done?'done':''}">
+        <input type="checkbox" data-item="${item.id}" ${item.done?'checked':''}>
+        <span>${escapeHtml(item.text)}</span>
+      </div>`;
+    });
+  }
+  panel.innerHTML = html;
+  panel.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      const c2 = state.campaigns.find(x=>x.id===activeCampaignId);
+      const it = c2.checklist.find(i=>i.id===cb.dataset.item);
+      it.done = cb.checked;
+      saveState();
+      renderChecklistTab(c2);
+      render();
+    });
+  });
+}
+
+/* ---------- monday.com direct connection ---------- */
+
+async function gql(query, variables){
+  const r = await fetch('https://api.monday.com/v2', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'Bearer ' + TOKEN,
+      'API-Version': '2024-01'
+    },
+    body: JSON.stringify({ query, variables: variables || {} })
+  });
+  if(!r.ok) throw new Error('monday.com error: HTTP ' + r.status);
+  const j = await r.json();
+  if(j.errors) throw new Error(j.errors[0].message);
+  return j.data;
+}
+
+async function getAllItems(boardId){
+  const items = [];
+  let cursor = null;
+  let page_num = 0;
+  const maxPages = 20;
+  while(page_num < maxPages){
+    const cp = cursor ? `, cursor:"${cursor}"` : '';
+    const q = `{ boards(ids:[${boardId}]){ items_page(limit:100${cp}){ cursor items{ id name group{title} column_values{ id text column{title} } } } } }`;
+    const d = await gql(q);
+    const page = d.boards[0].items_page;
+    items.push(...page.items);
+    page_num++;
+    if(!page.cursor || page.items.length < 100) break;
+    cursor = page.cursor;
+  }
+  return items;
+}
+
+function findColumnText(columnValues, keywords){
+  for(const kw of keywords){
+    const col = columnValues.find(cv => (cv.column?.title || "").toLowerCase().includes(kw));
+    if(col) return col.text || "";
+  }
+  return "";
+}
+
+function mapCampaignItem(item){
+  const cv = item.column_values || [];
+  const out = { propertyName: item.name || "" };
+  FIELDS.forEach(f=>{ out[f.key] = findColumnText(cv, f.kw); });
+  out.notes = findColumnText(cv, ["notes"]);
+  return out;
+}
+
+async function ensureToken(promptIfMissing){
+  if(TOKEN) return TOKEN;
+  if(!promptIfMissing) return "";
+  const t = prompt("Enter your monday.com API token (Admin → Profile → Developers → My Access Tokens on monday.com). It's saved in this browser only.", "");
+  if(t === null) return "";
+  const trimmed = t.trim();
+  if(trimmed){
+    TOKEN = trimmed;
+    localStorage.setItem(TOKEN_KEY, TOKEN);
+  }
+  return TOKEN;
+}
+
+async function syncCampaigns(){
+  const btn = document.getElementById('syncBtn');
+  const token = await ensureToken(true);
+  if(!token) return;
+
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Syncing…`;
+  setSyncStatus("Pulling from monday.com…");
+  showError(null);
+  try{
+    const rawItems = await getAllItems(MONDAY_BOARD_ID);
+
+    rawItems.forEach(raw=>{
+      const mondayData = mapCampaignItem(raw);
+      const id = String(raw.id);
+      const existing = state.campaigns.find(c=>c.id===id);
+      if(existing){
+        existing.monday = mondayData;
+      } else {
+        state.campaigns.push({
+          id,
+          monday: mondayData,
+          overrides: {},
+          importantNotes: "",
+          checklist: state.checklistTemplate.length
+            ? state.checklistTemplate.map(t=>({id:uid(), text:t.text, group:t.group||"", done:false}))
+            : []
+        });
+      }
+    });
+
+    saveState();
+    render();
+    setSyncStatus("Synced " + new Date().toLocaleString());
+  }catch(err){
+    console.error(err);
+    if(String(err.message).match(/401|403|Unauthoriz/i)){
+      TOKEN = ""; localStorage.removeItem(TOKEN_KEY);
+      setSyncStatus("Invalid token — cleared", true);
+      showError("That token was rejected by monday.com and has been cleared. Click sync again to re-enter it.");
+    } else {
+      setSyncStatus("Sync failed", true);
+      showError("Couldn't sync from monday.com: " + err.message);
+    }
+  }finally{
+    btn.disabled = false;
+    btn.innerHTML = "Connect / sync monday.com";
+  }
+}
+
+async function syncChecklistTemplate(){
+  const btn = document.getElementById('checklistSyncBtn');
+  const token = await ensureToken(true);
+  if(!token) return;
+
+  btn.disabled = true;
+  const oldLabel = btn.textContent;
+  btn.textContent = "Syncing…";
+  showError(null);
+  try{
+    const rawItems = await getAllItems(CHECKLIST_BOARD_ID);
+    state.checklistTemplate = rawItems.map(i => ({ text: i.name || "", group: i.group?.title || "" }));
+    saveState();
+    render();
+    alert("Checklist template synced (" + state.checklistTemplate.length + " items). New campaigns will use it automatically. Existing campaigns keep their current checklist.");
+  }catch(err){
+    console.error(err);
+    showError("Couldn't sync the checklist template: " + err.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = oldLabel;
+  }
+}
+
+/* ---------- Events ---------- */
+
+document.getElementById('syncBtn').addEventListener('click', syncCampaigns);
+document.getElementById('checklistSyncBtn').addEventListener('click', syncChecklistTemplate);
+document.getElementById('closeModal').addEventListener('click', closeModal);
+document.getElementById('overlay').addEventListener('click', (e)=>{ if(e.target.id==='overlay') closeModal(); });
+document.getElementById('searchInput').addEventListener('input', render);
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    document.getElementById('panel-'+tab.dataset.tab).classList.add('active');
+  });
+});
+document.querySelectorAll('.filter-chip').forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    currentFilter = chip.dataset.filter;
+    render();
+  });
+});
+
+loadState();
+if(TOKEN){ setSyncStatus("Token saved — click sync to refresh"); }
+</script>
+</body>
+</html>
