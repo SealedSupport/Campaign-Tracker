@@ -1,0 +1,897 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Sealed — Campaign Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Jost:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#0e1a26;
+    --ink-soft:#4f6373;
+    --ink-faint:#93a3ae;
+    --paper:#f4f8fa;
+    --card:#ffffff;
+    --line:#dbe6ec;
+    --navy:#0b2234;
+    --navy-soft:#183044;
+    --sky:#c1dae5;
+    --sky-deep:#3f7c99;
+    --sky-tint:#eef6f9;
+    --live:#3f7a52;      --live-bg:#e6f0e8;
+    --progress:#b3701c;  --progress-bg:#f7ead4;
+    --withdrawn:#a13f3f; --withdrawn-bg:#f6e6e6;
+    --sold:#5a4f9e;      --sold-bg:#ece9f7;
+    --other:#5b7181;     --other-bg:#e9f0f3;
+    --radius:12px;
+    --shadow:0 10px 28px rgba(11,34,52,.08);
+    --shadow-lg:0 24px 64px rgba(6,16,26,.32);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:'Jost',sans-serif;min-height:100vh;-webkit-font-smoothing:antialiased;}
+
+  .topbar{background:var(--navy);color:#fff;padding:20px 32px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;box-shadow:0 2px 12px rgba(0,0,0,.15);}
+  .brand{display:flex;flex-direction:column;gap:2px;}
+  .brand .eyebrow{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--sky);}
+  .brand h1{font-family:'Jost',sans-serif;font-weight:600;font-size:23px;margin:0;letter-spacing:.005em;}
+  .sync-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  .sync-status{font-family:'JetBrains Mono',monospace;font-size:11px;color:#c3ccdb;}
+  .sync-status.err{color:#f3b8b8;}
+  button.primary{background:var(--sky-deep);color:#ffffff;border:none;padding:10px 18px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer;display:flex;align-items:center;gap:8px;transition:background .15s;}
+  button.primary:hover{background:#336a84;}
+  button.primary:disabled{opacity:.6;cursor:wait;}
+  button.ghost{background:rgba(255,255,255,.06);color:#fff;border:1px solid rgba(255,255,255,.28);padding:10px 16px;border-radius:8px;font-size:13px;cursor:pointer;transition:border-color .15s;}
+  button.ghost:hover{border-color:#fff;}
+  .spinner{width:12px;height:12px;border-radius:50%;border:2px solid rgba(255,255,255,.35);border-top-color:#ffffff;animation:spin .7s linear infinite;display:inline-block;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  .controls{max-width:1280px;margin:0 auto;padding:22px 32px 0;display:flex;gap:12px;align-items:center;flex-wrap:wrap;}
+  .search{flex:1;min-width:220px;padding:10px 14px;border:1px solid var(--line);border-radius:8px;font-size:13.5px;background:#fff;color:var(--ink);}
+  .search:focus{outline:none;border-color:var(--sky-deep);}
+  .filter-chip{border:1px solid var(--line);background:#fff;padding:7px 14px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;color:var(--ink-soft);transition:.15s;}
+  .filter-chip.active{background:var(--navy);color:#fff;border-color:var(--navy);}
+
+  .board{max-width:1280px;margin:0 auto;padding:18px 32px 60px;}
+  .table-scroll{overflow-x:auto;}
+  .row-head, .row-item{
+    display:grid;
+    grid-template-columns: minmax(200px,2.3fr) 132px 168px 150px 150px 120px;
+    gap:16px;
+    align-items:center;
+    min-width:940px;
+  }
+  .row-head{
+    font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--ink-faint);font-weight:600;
+    padding:0 18px 10px;border-bottom:1px solid var(--line);margin-bottom:2px;
+  }
+  .row-item{
+    background:var(--card);border:1px solid var(--line);border-radius:10px;
+    padding:14px 18px;margin-top:9px;cursor:pointer;
+    transition:box-shadow .15s ease, transform .15s ease, border-color .15s ease;
+  }
+  .row-item:hover{box-shadow:var(--shadow);transform:translateY(-1px);border-color:#c7dae2;}
+  .row-pname{font-family:'Jost',sans-serif;font-size:14.5px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--ink);}
+  .row-val{font-size:12.5px;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .row-val.empty{color:var(--ink-faint);font-weight:400;}
+  .row-val.overridden{color:var(--sky-deep);font-weight:600;}
+  .row-val.overridden::after{content:" ✎";}
+  .row-checklist{display:flex;flex-direction:column;gap:5px;}
+  .row-checklist .bar{height:4px;}
+  .row-checklist .clabel{font-family:'JetBrains Mono',monospace;font-size:9.5px;color:var(--ink-faint);white-space:nowrap;}
+
+  select.status-select{
+    appearance:none;-webkit-appearance:none;
+    border:none;font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;
+    padding:5px 22px 5px 9px;border-radius:20px;cursor:pointer;
+    background-position:right 7px center;background-repeat:no-repeat;background-size:8px;
+    flex-shrink:0;max-width:150px;
+  }
+  select.status-select.st-live{background-color:var(--live-bg);color:var(--live);}
+  select.status-select.st-progress{background-color:var(--progress-bg);color:var(--progress);}
+  select.status-select.st-withdrawn{background-color:var(--withdrawn-bg);color:var(--withdrawn);}
+  select.status-select.st-sold{background-color:var(--sold-bg);color:var(--sold);}
+  select.status-select.st-other{background-color:var(--other-bg);color:var(--other);}
+
+  .bar{height:4px;background:var(--line);border-radius:4px;overflow:hidden;margin-top:2px;}
+  .bar-fill{height:100%;background:var(--sky-deep);}
+
+  .empty{max-width:1280px;margin:60px auto;padding:0 32px;text-align:center;color:var(--ink-soft);}
+  .empty h2{font-family:'Jost',sans-serif;color:var(--ink);font-weight:600;}
+  .empty code{background:#efece3;padding:2px 6px;border-radius:4px;font-size:12.5px;}
+
+  .overlay{position:fixed;inset:0;background:rgba(15,19,26,.55);display:none;align-items:flex-start;justify-content:center;padding:40px 20px;overflow-y:auto;z-index:50;backdrop-filter:blur(2px);}
+  .overlay.show{display:flex;}
+  .modal{background:var(--card);border-radius:16px;width:100%;max-width:820px;box-shadow:var(--shadow-lg);overflow:hidden;}
+  .modal-head{background:var(--navy);color:#fff;padding:24px 28px;display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
+  .modal-head h2{font-family:'Jost',sans-serif;font-weight:600;font-size:20px;margin:0 0 8px;}
+  .modal-head .sub{display:flex;align-items:center;gap:8px;}
+  .close-x{background:none;border:none;color:#fff;font-size:19px;cursor:pointer;line-height:1;opacity:.7;}
+  .close-x:hover{opacity:1;}
+  .tabs{display:flex;border-bottom:1px solid var(--line);background:#fbfaf6;}
+  .tab{flex:1;padding:13px 10px;text-align:center;font-size:12.5px;font-weight:600;color:var(--ink-soft);cursor:pointer;border-bottom:2px solid transparent;letter-spacing:.02em;}
+  .tab.active{color:var(--navy);border-bottom-color:var(--sky-deep);background:#fff;}
+  .tab-panel{padding:24px 28px 28px;display:none;max-height:64vh;overflow-y:auto;}
+  .tab-panel.active{display:block;}
+
+  .legend{font-size:11.5px;color:var(--ink-soft);margin-bottom:16px;line-height:1.5;background:var(--sky-tint);border:1px solid #cfe3ea;padding:10px 14px;border-radius:8px;}
+  .legend b{color:var(--sky-deep);}
+
+  .field-table{width:100%;border-collapse:collapse;}
+  .field-table th{text-align:left;font-family:'JetBrains Mono',monospace;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);padding:0 10px 8px 0;font-weight:600;white-space:nowrap;}
+  .field-table td{padding:9px 10px 9px 0;border-bottom:1px solid #f1efe8;vertical-align:middle;white-space:nowrap;}
+  .field-table tr:last-child td{border-bottom:none;}
+  .field-table td.flabel{font-size:12px;color:var(--ink-soft);font-weight:600;width:150px;white-space:nowrap;}
+  .field-table td.fmonday{font-size:13px;color:var(--ink);width:34%;overflow:hidden;text-overflow:ellipsis;}
+  .field-table td.fmonday.empty{color:var(--ink-faint);}
+  .field-table td.foverride{width:auto;}
+  .field-table td.foverride input{border:1px solid var(--line);border-radius:7px;padding:7px 10px;font-size:13px;font-family:'Jost',sans-serif;width:100%;white-space:normal;}
+  .field-table td.foverride input:not(:placeholder-shown){border-color:var(--sky-deep);background:var(--sky-tint);}
+
+  textarea.notes-input{width:100%;min-height:70px;border:1px solid var(--line);border-radius:8px;padding:11px 13px;font-size:13.5px;font-family:'Jost',sans-serif;resize:vertical;line-height:1.5;}
+  .notes-add-row{display:flex;gap:8px;margin-bottom:18px;}
+  .notes-add-row select{border:1px solid var(--line);border-radius:7px;padding:9px 12px;font-size:12.5px;font-weight:600;background:#fff;color:var(--ink);}
+  .notes-add-row button{background:var(--navy);color:#fff;border:none;border-radius:7px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer;}
+  .notes-add-row button:hover{background:var(--navy-soft);}
+  .note-card{border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:12px;background:#fff;}
+  .note-card-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px;}
+  .note-tag{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:4px 10px;border-radius:20px;}
+  .note-tag.tag-todo{background:var(--progress-bg);color:var(--progress);}
+  .note-tag.tag-done{background:var(--live-bg);color:var(--live);}
+  .note-tag.tag-gen{background:var(--other-bg);color:var(--other);}
+  .note-meta{display:flex;align-items:center;gap:10px;}
+  .note-ts{font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--ink-faint);}
+  .note-del{background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:14px;padding:2px 4px;}
+  .note-del:hover{color:var(--withdrawn);}
+  .notes-empty{color:var(--ink-faint);font-size:13px;text-align:center;padding:30px 0;}
+
+  .checklist-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #f1efe8;}
+  .checklist-item input[type=checkbox]{width:17px;height:17px;accent-color:var(--sky-deep);cursor:pointer;flex-shrink:0;}
+  .checklist-item span{font-size:13.5px;}
+  .checklist-item.done span{color:var(--ink-faint);text-decoration:line-through;}
+  .checklist-item input[type=text]{border:1px solid transparent;background:transparent;font-size:13.5px;font-family:'Jost',sans-serif;flex:1;padding:5px 7px;border-radius:6px;color:var(--ink);}
+  .checklist-item input[type=text]:hover{border-color:var(--line);}
+  .checklist-item input[type=text]:focus{outline:none;border-color:var(--sky-deep);background:var(--sky-tint);}
+  .checklist-item.done input[type=text]{color:var(--ink-faint);text-decoration:line-through;}
+  .checklist-item .item-del{background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:13px;padding:2px 5px;flex-shrink:0;}
+  .checklist-item .item-del:hover{color:var(--withdrawn);}
+  .checklist-add-row{display:flex;gap:8px;margin-top:14px;padding-top:14px;border-top:1px dashed var(--line);}
+  .checklist-add-row input{flex:1;border:1px solid var(--line);border-radius:7px;padding:8px 11px;font-size:13px;font-family:'Jost',sans-serif;}
+  .checklist-add-row input.grp-input{flex:0 0 140px;}
+  .checklist-add-row button{background:var(--navy);color:#fff;border:none;border-radius:7px;padding:8px 16px;font-size:12.5px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .checklist-add-row button:hover{background:var(--navy-soft);}
+  .field-group-title{font-family:'JetBrains Mono',monospace;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-faint);margin:18px 0 8px;}
+  .field-group-title:first-child{margin-top:0;}
+  .checklist-progress{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-soft);margin-bottom:12px;}
+  .tmpl-item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #f1efe8;}
+  .tmpl-item input.txt-input{flex:1;border:1px solid var(--line);border-radius:7px;padding:8px 11px;font-size:13px;font-family:'Jost',sans-serif;}
+  .tmpl-item input.grp-input{flex:0 0 150px;border:1px solid var(--line);border-radius:7px;padding:8px 11px;font-size:12.5px;font-family:'Jost',sans-serif;color:var(--ink-soft);}
+  .tmpl-item .item-del{background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:14px;padding:2px 6px;flex-shrink:0;}
+  .tmpl-item .item-del:hover{color:var(--withdrawn);}
+  .tmpl-foot{display:flex;justify-content:space-between;align-items:center;margin-top:16px;padding-top:16px;border-top:1px solid var(--line);gap:10px;flex-wrap:wrap;}
+  .tmpl-foot .hint{font-size:11.5px;color:var(--ink-faint);}
+  .tmpl-foot button{background:var(--sky-deep);color:#ffffff;border:none;border-radius:7px;padding:9px 16px;font-size:12.5px;font-weight:600;cursor:pointer;}
+  .tmpl-foot button.secondary{background:transparent;color:var(--ink-soft);border:1px solid var(--line);}
+  .save-note{font-size:11px;color:var(--ink-faint);margin-top:14px;font-style:italic;}
+  .err-banner{max-width:1280px;margin:16px auto 0;padding:0 32px;}
+  .err-banner .box{background:#fbeaea;border:1px solid #eac6c6;color:var(--withdrawn);padding:12px 16px;border-radius:8px;font-size:13px;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="eyebrow">Sealed Real Estate</div>
+    <h1>Campaign Tracker</h1>
+  </div>
+  <div class="sync-row">
+    <span class="sync-status" id="syncStatus">Not connected</span>
+    <button class="ghost" id="templateEditBtn">Edit checklist template</button>
+    <button class="primary" id="syncBtn">Connect / sync monday.com</button>
+  </div>
+</div>
+
+<div class="err-banner" id="errBanner" style="display:none;"><div class="box" id="errBox"></div></div>
+
+<div class="controls">
+  <input class="search" id="searchInput" placeholder="Search by property, vendor, contact…">
+  <div class="filter-chip active" data-filter="all">All</div>
+  <div class="filter-chip" data-filter="live">Live</div>
+  <div class="filter-chip" data-filter="progress">In Progress</div>
+  <div class="filter-chip" data-filter="withdrawn">Withdrawn</div>
+  <div class="filter-chip" data-filter="sold">Sold</div>
+</div>
+
+<div class="board"><div class="table-scroll" id="board"></div></div>
+
+<div class="empty" id="emptyState" style="display:none;">
+  <h2>No campaigns yet</h2>
+  <p>Click <code>Connect / sync monday.com</code> above and paste your monday.com API token to pull in the campaign board.</p>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <h2 id="modalTitle">Property</h2>
+        <div class="sub" id="modalSubWrap"></div>
+      </div>
+      <button class="close-x" id="closeModal">✕</button>
+    </div>
+    <div class="tabs">
+      <div class="tab active" data-tab="details">Campaign Details</div>
+      <div class="tab" data-tab="notes">Important Notes</div>
+      <div class="tab" data-tab="checklist">Checklist</div>
+    </div>
+    <div class="tab-panel active" id="panel-details"></div>
+    <div class="tab-panel" id="panel-notes"></div>
+    <div class="tab-panel" id="panel-checklist"></div>
+  </div>
+</div>
+
+<div class="overlay" id="tmplOverlay">
+  <div class="modal" style="max-width:640px;">
+    <div class="modal-head">
+      <div><h2>Checklist template</h2><div class="sub" style="font-size:12px;color:#c6ccd8;">Applies to every new campaign automatically</div></div>
+      <button class="close-x" id="closeTmplModal">✕</button>
+    </div>
+    <div class="tab-panel active" style="padding:24px 28px 28px;">
+      <div class="legend">Edit, reorder by group, add, or remove items here any time. This is fully independent of monday.com — safe to use even after you delete that board.</div>
+      <div id="tmplList"></div>
+      <div class="checklist-add-row">
+        <input type="text" id="tmplNewGroup" class="grp-input" placeholder="Group (optional)">
+        <input type="text" id="tmplNewText" placeholder="New checklist item…">
+        <button id="tmplAddBtn">Add</button>
+      </div>
+      <div class="tmpl-foot">
+        <span class="hint" id="tmplCount">0 items · changes save automatically</span>
+        <button class="secondary" id="tmplApplyAllBtn">Apply to all existing campaigns</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const MONDAY_BOARD_ID = "1949978416";
+const CHECKLIST_BOARD_ID = "5026745029";
+const TOKEN_KEY = "sealed_tracker_monday_token";
+const STATE_KEY = "sealed_tracker_state_v2";
+
+const STATUS_OPTIONS = ["Live","In Progress","Withdrawn","Sold"];
+const STATUS_CLASS = {"Live":"st-live","In Progress":"st-progress","Withdrawn":"st-withdrawn","Sold":"st-sold"};
+
+const FIELDS = [
+  {key:"campaignStatus", label:"Campaign Status", kw:["campaign status","status"], type:"status"},
+  {key:"saleType", label:"Sale Type", kw:["sale type"], type:"text"},
+  {key:"auctionDate", label:"Auction Date", kw:["auction date","auction"], type:"date"},
+  {key:"launchDate", label:"Launch Date", kw:["launch date","launch"], type:"date"},
+  {key:"vendorName", label:"Vendor Name", kw:["vendor name"], type:"text"},
+  {key:"contact", label:"Contact", kw:["contact"], type:"text"},
+  {key:"email", label:"Email", kw:["email"], type:"text"},
+  {key:"conveyancer", label:"Conveyancer", kw:["conveyancer"], type:"text"},
+  {key:"preferredOpenhome", label:"Preferred Openhome", kw:["preferred openhome","open home","openhome"], type:"date"},
+  {key:"vendorMeeting", label:"Vendor Meeting", kw:["vendor meeting"], type:"date"},
+];
+
+// Fields shown on the tile itself, in order.
+const TILE_FIELDS = ["auctionDate","preferredOpenhome","vendorMeeting"];
+const TILE_LABELS = {auctionDate:"Auction", preferredOpenhome:"Open home", vendorMeeting:"Vendor mtg"};
+
+// Prebuilt checklist — baked directly into the code, independent of monday.com.
+// Used automatically for any browser/device that hasn't customized it yet via
+// "Edit checklist template". A few items (marked below) were reconstructed
+// from a partially cut-off column header screenshot — worth a quick check.
+const DEFAULT_CHECKLIST = [
+  { text: "Date" },
+  { text: "WhatsApp" },
+  { text: "Key" },
+  { text: "BOI Created" },
+  { text: "Authority Received" },
+  { text: "Submit Listing" },
+  { text: "Campaign Calendar" },
+  { text: "Trades W1" },
+  { text: "Stylist W1" },
+  { text: "Invite Auctioneer" },
+  { text: "Book Photos" },
+  { text: "Approve Styling Quote(s)" },
+  { text: "Approve Trades Quote(s)" },
+  { text: "Confirm Styling" },          // best guess — header was cut off
+  { text: "Confirm Trades" },           // best guess — header was cut off
+  { text: "Book IG" },
+  { text: "Outlook Calendar" },
+  { text: "Vendor Calendar" },
+  { text: "Coming Soon Post" },
+  { text: "Ready For Launching" },
+  { text: "Check Outlook Events" },     // best guess — header was cut off
+].map(t => ({ id: (Math.random().toString(36).slice(2,10)), text: t.text, group: "" }));
+
+let TOKEN = localStorage.getItem(TOKEN_KEY) || "";
+let state = { campaigns: [], checklistTemplate: DEFAULT_CHECKLIST.slice() };
+let activeCampaignId = null;
+let currentFilter = "all";
+
+function uid(){ return Math.random().toString(36).slice(2,10); }
+
+function loadState(){
+  try{
+    const raw = localStorage.getItem(STATE_KEY);
+    if(raw){
+      state = JSON.parse(raw);
+      if(!state.checklistTemplate || !state.checklistTemplate.length) state.checklistTemplate = DEFAULT_CHECKLIST.slice();
+      state.checklistTemplate.forEach(t=>{ if(!t.id) t.id = uid(); });
+    }
+  }catch(e){ /* fresh start */ }
+  render();
+}
+function saveState(){
+  try{ localStorage.setItem(STATE_KEY, JSON.stringify(state)); }
+  catch(e){ console.error("save failed", e); }
+}
+
+/* ---------- Date formatting: "Month Day, Year 12:00 pm" ---------- */
+function formatDateDisplay(raw){
+  if(!raw) return "";
+  const m = String(raw).match(/^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?/);
+  if(!m) return raw;
+  const [, y, mo, d, h, mi] = m;
+  const months = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+  const monthName = months[parseInt(mo,10)-1] || mo;
+  let out = `${monthName} ${parseInt(d,10)}, ${y}`;
+  if(h !== undefined){
+    let hour = parseInt(h,10);
+    const ampm = hour >= 12 ? "pm" : "am";
+    hour = hour % 12; if(hour === 0) hour = 12;
+    out += ` ${hour}:${mi} ${ampm}`;
+  }
+  return out;
+}
+
+/* ---------- Status helpers ---------- */
+function statusKeyFor(c){
+  if(c.overrides && c.overrides.campaignStatus && STATUS_OPTIONS.includes(c.overrides.campaignStatus)){
+    return c.overrides.campaignStatus;
+  }
+  const s = (c.monday.campaignStatus||"").toLowerCase();
+  if(s.includes("live") || s.includes("active") || s.includes("campaign")) return "Live";
+  if(s.includes("progress") || s.includes("pending") || s.includes("upcoming") || s.includes("prep")) return "In Progress";
+  if(s.includes("withdraw")) return "Withdrawn";
+  if(s.includes("sold") || s.includes("done") || s.includes("complete") || s.includes("settled")) return "Sold";
+  return null;
+}
+function statusClassFor(key){ return STATUS_CLASS[key] || "st-other"; }
+
+function getField(c, key){
+  if(c.overrides && c.overrides[key] !== undefined && c.overrides[key] !== "") return c.overrides[key];
+  return (c.monday && c.monday[key]) || "";
+}
+function isOverridden(c, key){
+  return !!(c.overrides && c.overrides[key] !== undefined && c.overrides[key] !== "");
+}
+function checklistProgress(c){
+  const items = c.checklist || [];
+  if(items.length === 0) return {done:0, total:0};
+  return {done: items.filter(i=>i.done).length, total: items.length};
+}
+function setSyncStatus(text, isErr){
+  const el = document.getElementById('syncStatus');
+  el.textContent = text;
+  el.classList.toggle('err', !!isErr);
+}
+function showError(msg){
+  const banner = document.getElementById('errBanner');
+  const box = document.getElementById('errBox');
+  if(!msg){ banner.style.display='none'; return; }
+  box.textContent = msg;
+  banner.style.display='block';
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+
+function statusSelectHtml(c, extraClass){
+  const key = statusKeyFor(c);
+  const cls = statusClassFor(key);
+  let opts = `<option value="" ${!(c.overrides&&c.overrides.campaignStatus) ? 'selected':''}>— From monday.com —</option>`;
+  STATUS_OPTIONS.forEach(s=>{
+    opts += `<option value="${s}" ${(c.overrides&&c.overrides.campaignStatus)===s?'selected':''}>${s}</option>`;
+  });
+  return `<select class="status-select ${cls} ${extraClass||''}" data-status-for="${c.id}">${opts}</select>`;
+}
+
+function bindStatusSelects(root){
+  root.querySelectorAll('select[data-status-for]').forEach(sel=>{
+    sel.addEventListener('click', e=>e.stopPropagation());
+    sel.addEventListener('change', e=>{
+      e.stopPropagation();
+      const c = state.campaigns.find(x=>x.id===sel.dataset.statusFor);
+      if(!c.overrides) c.overrides = {};
+      if(sel.value) c.overrides.campaignStatus = sel.value;
+      else delete c.overrides.campaignStatus;
+      saveState();
+      render();
+      if(activeCampaignId === c.id) openModal(c.id);
+    });
+  });
+}
+
+/* ---------- Rendering ---------- */
+
+function render(){
+  const board = document.getElementById('board');
+  const empty = document.getElementById('emptyState');
+  const q = document.getElementById('searchInput').value.trim().toLowerCase();
+
+  let list = state.campaigns.slice();
+  if(currentFilter !== "all"){
+    const wanted = ({live:"Live",progress:"In Progress",withdrawn:"Withdrawn",sold:"Sold"})[currentFilter];
+    list = list.filter(c => statusKeyFor(c) === wanted);
+  }
+  if(q){
+    list = list.filter(c=>{
+      const hay = [getField(c,'vendorName'), getField(c,'contact'), c.monday.propertyName].join(' ').toLowerCase();
+      return hay.includes(q);
+    });
+  }
+
+  empty.style.display = list.length ? "none" : "block";
+  if(list.length === 0){ board.innerHTML = ""; return; }
+
+  let html = `<div class="row-head">
+    <div>Property</div><div>Status</div><div>Auction</div><div>Open home</div><div>Vendor mtg</div><div>Checklist</div>
+  </div>`;
+
+  list.forEach(c=>{
+    const prog = checklistProgress(c);
+    const pct = prog.total ? Math.round(prog.done/prog.total*100) : 0;
+    const cells = TILE_FIELDS.map(key=>{
+      const val = getField(c, key);
+      const disp = val ? formatDateDisplay(val) : "";
+      return `<div class="row-val ${!disp?'empty':''} ${isOverridden(c,key)?'overridden':''}" title="${escapeHtml(disp||'')}">${disp?escapeHtml(disp):'—'}</div>`;
+    }).join('');
+
+    html += `<div class="row-item" data-open="${c.id}">
+      <div class="row-pname" title="${escapeHtml(c.monday.propertyName || 'Untitled property')}">${escapeHtml(c.monday.propertyName || 'Untitled property')}</div>
+      ${statusSelectHtml(c)}
+      ${cells}
+      <div class="row-checklist">
+        <div class="bar"><div class="bar-fill" style="width:${pct}%"></div></div>
+        <div class="clabel">${prog.done}/${prog.total}</div>
+      </div>
+    </div>`;
+  });
+
+  board.innerHTML = html;
+  board.querySelectorAll('[data-open]').forEach(row=>{
+    row.addEventListener('click', ()=>openModal(row.dataset.open));
+  });
+  bindStatusSelects(board);
+}
+
+/* ---------- Modal ---------- */
+
+function openModal(id){
+  activeCampaignId = id;
+  const c = state.campaigns.find(x=>x.id===id);
+  if(!c) return;
+
+  document.getElementById('modalTitle').textContent = c.monday.propertyName || 'Untitled property';
+  document.getElementById('modalSubWrap').innerHTML = statusSelectHtml(c);
+  bindStatusSelects(document.getElementById('modalSubWrap'));
+
+  renderDetailsTab(c);
+  renderNotesTab(c);
+  renderChecklistTab(c);
+
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector('.tab[data-tab="details"]').classList.add('active');
+  document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+  document.getElementById('panel-details').classList.add('active');
+
+  document.getElementById('overlay').classList.add('show');
+}
+function closeModal(){
+  document.getElementById('overlay').classList.remove('show');
+  activeCampaignId = null;
+}
+
+function renderDetailsTab(c){
+  const panel = document.getElementById('panel-details');
+  let html = `<div class="legend">Left column is what's live on monday.com right now. Type in the right-hand cell any time something changes on your end — <b>your entry always wins</b> until you clear it.</div>`;
+  html += `<table class="field-table"><tr><th></th><th>From monday.com</th><th>Updated by you</th></tr>`;
+  FIELDS.forEach(f=>{
+    if(f.type === "status") return; // status is handled by the dropdown in the modal header
+    const mraw = c.monday[f.key] || "";
+    const mdisp = f.type === "date" ? formatDateDisplay(mraw) : mraw;
+    const oval = (c.overrides && c.overrides[f.key]) || "";
+    html += `<tr>
+      <td class="flabel">${f.label}</td>
+      <td class="fmonday ${!mdisp?'empty':''}">${mdisp?escapeHtml(mdisp):'—'}</td>
+      <td class="foverride"><input type="text" data-override="${f.key}" value="${escapeHtml(oval)}" placeholder="No change"></td>
+    </tr>`;
+  });
+  html += `</table>`;
+  html += `<div class="save-note">Changes save automatically in this browser.</div>`;
+  panel.innerHTML = html;
+
+  panel.querySelectorAll('input[data-override]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const c2 = state.campaigns.find(x=>x.id===activeCampaignId);
+      if(!c2.overrides) c2.overrides = {};
+      c2.overrides[inp.dataset.override] = inp.value;
+      saveState();
+      render();
+    });
+  });
+}
+
+const NOTE_TAGS = [
+  {key:"todo", label:"To-do", cls:"tag-todo"},
+  {key:"done", label:"Done", cls:"tag-done"},
+  {key:"gen", label:"Gen notes", cls:"tag-gen"},
+];
+
+function renderNotesTab(c){
+  const panel = document.getElementById('panel-notes');
+  if(!c.notesList) c.notesList = [];
+
+  let html = `<div class="notes-add-row">
+    <select id="newNoteTag">${NOTE_TAGS.map(t=>`<option value="${t.key}">${t.label}</option>`).join('')}</select>
+    <textarea class="notes-input" id="newNoteText" style="min-height:40px;flex:1;" placeholder="Write a note…"></textarea>
+    <button id="addNoteBtn">Add note</button>
+  </div>`;
+
+  if(c.notesList.length === 0){
+    html += `<div class="notes-empty">No notes yet — add your first one above.</div>`;
+  } else {
+    const sorted = c.notesList.slice().sort((a,b)=> (b.ts||0) - (a.ts||0));
+    sorted.forEach(n=>{
+      const tagDef = NOTE_TAGS.find(t=>t.key===n.tag) || NOTE_TAGS[2];
+      const dateStr = n.ts ? formatDateDisplay(new Date(n.ts).toISOString().slice(0,16).replace('T',' ')) : "";
+      html += `<div class="note-card" data-note-id="${n.id}">
+        <div class="note-card-top">
+          <div class="note-meta"><span class="note-tag ${tagDef.cls}">${tagDef.label}</span><span class="note-ts">${escapeHtml(dateStr)}</span></div>
+          <button class="note-del" data-del-note="${n.id}" title="Delete note">✕</button>
+        </div>
+        <textarea class="notes-input" data-note-text="${n.id}">${escapeHtml(n.text||"")}</textarea>
+      </div>`;
+    });
+  }
+  panel.innerHTML = html;
+
+  document.getElementById('addNoteBtn').addEventListener('click', ()=>{
+    const tag = document.getElementById('newNoteTag').value;
+    const text = document.getElementById('newNoteText').value.trim();
+    if(!text) return;
+    const c2 = state.campaigns.find(x=>x.id===activeCampaignId);
+    if(!c2.notesList) c2.notesList = [];
+    c2.notesList.push({id:uid(), tag, text, ts: Date.now()});
+    saveState();
+    renderNotesTab(c2);
+  });
+
+  panel.querySelectorAll('[data-del-note]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const c2 = state.campaigns.find(x=>x.id===activeCampaignId);
+      c2.notesList = c2.notesList.filter(n=>n.id !== btn.dataset.delNote);
+      saveState();
+      renderNotesTab(c2);
+    });
+  });
+
+  panel.querySelectorAll('[data-note-text]').forEach(ta=>{
+    let t;
+    ta.addEventListener('input', ()=>{
+      clearTimeout(t);
+      t = setTimeout(()=>{
+        const c2 = state.campaigns.find(x=>x.id===activeCampaignId);
+        const note = c2.notesList.find(n=>n.id===ta.dataset.noteText);
+        if(note){ note.text = ta.value; saveState(); }
+      }, 400);
+    });
+  });
+}
+
+function renderChecklistTab(c){
+  const panel = document.getElementById('panel-checklist');
+  if(!c.checklist) c.checklist = [];
+  if(c.checklist.length === 0 && state.checklistTemplate.length){
+    c.checklist = state.checklistTemplate.map(t=>({id:uid(), text:t.text, group:t.group||"", done:false}));
+    saveState();
+  }
+  const prog = checklistProgress(c);
+  let html = `<div class="checklist-progress">${prog.done} of ${prog.total} complete</div>`;
+  if(c.checklist.length === 0){
+    html += `<p style="color:var(--ink-soft);font-size:13.5px;">No checklist items yet. Add one below, or click "Sync checklist template" / "Edit checklist template" at the top.</p>`;
+  } else {
+    let lastGroup = null;
+    c.checklist.forEach(item=>{
+      if(item.group && item.group !== lastGroup){
+        html += `<div class="field-group-title">${escapeHtml(item.group)}</div>`;
+        lastGroup = item.group;
+      }
+      html += `<div class="checklist-item ${item.done?'done':''}">
+        <input type="checkbox" data-item="${item.id}" ${item.done?'checked':''}>
+        <input type="text" data-item-text="${item.id}" value="${escapeHtml(item.text)}">
+        <button class="item-del" data-item-del="${item.id}" title="Remove item">✕</button>
+      </div>`;
+    });
+  }
+  html += `<div class="checklist-add-row">
+    <input type="text" id="checkNewGroup" class="grp-input" placeholder="Group (optional)">
+    <input type="text" id="checkNewText" placeholder="New checklist item…">
+    <button id="checkAddBtn">Add</button>
+  </div>`;
+  panel.innerHTML = html;
+
+  panel.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      const c2 = state.campaigns.find(x=>x.id===activeCampaignId);
+      const it = c2.checklist.find(i=>i.id===cb.dataset.item);
+      it.done = cb.checked;
+      saveState();
+      renderChecklistTab(c2);
+      render();
+    });
+  });
+  panel.querySelectorAll('input[data-item-text]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const c2 = state.campaigns.find(x=>x.id===activeCampaignId);
+      const it = c2.checklist.find(i=>i.id===inp.dataset.itemText);
+      if(it){ it.text = inp.value; saveState(); }
+    });
+  });
+  panel.querySelectorAll('[data-item-del]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      const c2 = state.campaigns.find(x=>x.id===activeCampaignId);
+      c2.checklist = c2.checklist.filter(i=>i.id !== btn.dataset.itemDel);
+      saveState();
+      renderChecklistTab(c2);
+      render();
+    });
+  });
+  const addBtn = document.getElementById('checkAddBtn');
+  if(addBtn) addBtn.addEventListener('click', ()=>{
+    const text = document.getElementById('checkNewText').value.trim();
+    if(!text) return;
+    const group = document.getElementById('checkNewGroup').value.trim();
+    const c2 = state.campaigns.find(x=>x.id===activeCampaignId);
+    if(!c2.checklist) c2.checklist = [];
+    c2.checklist.push({id:uid(), text, group, done:false});
+    saveState();
+    renderChecklistTab(c2);
+    render();
+  });
+}
+
+/* ---------- Checklist template editor ---------- */
+
+function openTemplateEditor(){
+  renderTemplateEditor();
+  document.getElementById('tmplOverlay').classList.add('show');
+}
+function closeTemplateEditor(){
+  document.getElementById('tmplOverlay').classList.remove('show');
+}
+
+function renderTemplateEditor(){
+  const list = document.getElementById('tmplList');
+  document.getElementById('tmplCount').textContent = state.checklistTemplate.length + ' items · changes save automatically';
+  if(state.checklistTemplate.length === 0){
+    list.innerHTML = `<p style="color:var(--ink-soft);font-size:13.5px;">No template items yet — add your first one below.</p>`;
+    return;
+  }
+  let html = '';
+  state.checklistTemplate.forEach(t=>{
+    html += `<div class="tmpl-item">
+      <input type="text" class="grp-input" data-tmpl-group="${t.id}" value="${escapeHtml(t.group||'')}" placeholder="Group">
+      <input type="text" class="txt-input" data-tmpl-text="${t.id}" value="${escapeHtml(t.text||'')}" placeholder="Item text">
+      <button class="item-del" data-tmpl-del="${t.id}" title="Remove">✕</button>
+    </div>`;
+  });
+  list.innerHTML = html;
+
+  list.querySelectorAll('[data-tmpl-text]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const t = state.checklistTemplate.find(x=>x.id===inp.dataset.tmplText);
+      if(t){ t.text = inp.value; saveState(); }
+    });
+  });
+  list.querySelectorAll('[data-tmpl-group]').forEach(inp=>{
+    inp.addEventListener('change', ()=>{
+      const t = state.checklistTemplate.find(x=>x.id===inp.dataset.tmplGroup);
+      if(t){ t.group = inp.value; saveState(); }
+    });
+  });
+  list.querySelectorAll('[data-tmpl-del]').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      state.checklistTemplate = state.checklistTemplate.filter(x=>x.id !== btn.dataset.tmplDel);
+      saveState();
+      renderTemplateEditor();
+    });
+  });
+}
+
+function addTemplateItem(){
+  const textEl = document.getElementById('tmplNewText');
+  const groupEl = document.getElementById('tmplNewGroup');
+  const text = textEl.value.trim();
+  if(!text) return;
+  const group = groupEl.value.trim();
+  if(!state.checklistTemplate) state.checklistTemplate = [];
+  state.checklistTemplate.push({id:uid(), text, group});
+  textEl.value = ''; groupEl.value = '';
+  saveState();
+  renderTemplateEditor();
+}
+
+function applyTemplateToAllCampaigns(){
+  if(!confirm("This replaces the checklist on every campaign with the current template, clearing any ticks and campaign-specific items already there. Continue?")) return;
+  state.campaigns.forEach(c=>{
+    c.checklist = state.checklistTemplate.map(t=>({id:uid(), text:t.text, group:t.group||"", done:false}));
+  });
+  saveState();
+  render();
+  if(activeCampaignId){
+    const c = state.campaigns.find(x=>x.id===activeCampaignId);
+    if(c) renderChecklistTab(c);
+  }
+  alert("Checklist applied to all campaigns.");
+}
+
+/* ---------- monday.com direct connection ---------- */
+
+async function gql(query, variables){
+  const r = await fetch('https://api.monday.com/v2', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN, 'API-Version': '2024-01' },
+    body: JSON.stringify({ query, variables: variables || {} })
+  });
+  if(!r.ok) throw new Error('monday.com error: HTTP ' + r.status);
+  const j = await r.json();
+  if(j.errors) throw new Error(j.errors[0].message);
+  return j.data;
+}
+
+async function getAllItems(boardId){
+  const items = [];
+  let cursor = null, page_num = 0;
+  const maxPages = 20;
+  while(page_num < maxPages){
+    const cp = cursor ? `, cursor:"${cursor}"` : '';
+    const q = `{ boards(ids:[${boardId}]){ items_page(limit:100${cp}){ cursor items{ id name group{title} column_values{ id text column{title} } } } } }`;
+    const d = await gql(q);
+    const page = d.boards[0].items_page;
+    items.push(...page.items);
+    page_num++;
+    if(!page.cursor || page.items.length < 100) break;
+    cursor = page.cursor;
+  }
+  return items;
+}
+
+function findColumnText(columnValues, keywords){
+  for(const kw of keywords){
+    const col = columnValues.find(cv => (cv.column?.title || "").toLowerCase().includes(kw));
+    if(col) return col.text || "";
+  }
+  return "";
+}
+function mapCampaignItem(item){
+  const cv = item.column_values || [];
+  const out = { propertyName: item.name || "" };
+  FIELDS.forEach(f=>{ out[f.key] = findColumnText(cv, f.kw); });
+  out.notes = findColumnText(cv, ["notes"]);
+  return out;
+}
+
+async function ensureToken(promptIfMissing){
+  if(TOKEN) return TOKEN;
+  if(!promptIfMissing) return "";
+  const t = prompt("Enter your monday.com API token (Admin → Profile → Developers → My Access Tokens on monday.com). It's saved in this browser only.", "");
+  if(t === null) return "";
+  const trimmed = t.trim();
+  if(trimmed){ TOKEN = trimmed; localStorage.setItem(TOKEN_KEY, TOKEN); }
+  return TOKEN;
+}
+
+async function syncCampaigns(){
+  const btn = document.getElementById('syncBtn');
+  const token = await ensureToken(true);
+  if(!token) return;
+
+  btn.disabled = true;
+  btn.innerHTML = `<span class="spinner"></span> Syncing…`;
+  setSyncStatus("Pulling from monday.com…");
+  showError(null);
+  try{
+    const rawItems = await getAllItems(MONDAY_BOARD_ID);
+    rawItems.forEach(raw=>{
+      const mondayData = mapCampaignItem(raw);
+      const id = String(raw.id);
+      const existing = state.campaigns.find(c=>c.id===id);
+      if(existing){
+        existing.monday = mondayData;
+      } else {
+        state.campaigns.push({
+          id, monday: mondayData, overrides: {}, notesList: [],
+          checklist: state.checklistTemplate.length
+            ? state.checklistTemplate.map(t=>({id:uid(), text:t.text, group:t.group||"", done:false}))
+            : []
+        });
+      }
+    });
+    saveState();
+    render();
+    setSyncStatus("Synced " + new Date().toLocaleString());
+  }catch(err){
+    console.error(err);
+    if(String(err.message).match(/401|403|Unauthoriz/i)){
+      TOKEN = ""; localStorage.removeItem(TOKEN_KEY);
+      setSyncStatus("Invalid token — cleared", true);
+      showError("That token was rejected by monday.com and has been cleared. Click sync again to re-enter it.");
+    } else {
+      setSyncStatus("Sync failed", true);
+      showError("Couldn't sync from monday.com: " + err.message);
+    }
+  }finally{
+    btn.disabled = false;
+    btn.innerHTML = "Connect / sync monday.com";
+  }
+}
+
+async function syncChecklistTemplate(){
+  const btn = document.getElementById('checklistSyncBtn');
+  const token = await ensureToken(true);
+  if(!token) return;
+  btn.disabled = true;
+  const oldLabel = btn.textContent;
+  btn.textContent = "Syncing…";
+  showError(null);
+  try{
+    const rawItems = await getAllItems(CHECKLIST_BOARD_ID);
+    state.checklistTemplate = rawItems.map(i => ({ id: uid(), text: i.name || "", group: i.group?.title || "" }));
+    saveState();
+    render();
+    alert("Checklist template synced (" + state.checklistTemplate.length + " items). New campaigns will use it automatically. Existing campaigns keep their current checklist.");
+  }catch(err){
+    console.error(err);
+    showError("Couldn't sync the checklist template: " + err.message);
+  }finally{
+    btn.disabled = false;
+    btn.textContent = oldLabel;
+  }
+}
+
+/* ---------- Events ---------- */
+
+document.getElementById('syncBtn').addEventListener('click', syncCampaigns);
+document.getElementById('templateEditBtn').addEventListener('click', openTemplateEditor);
+document.getElementById('closeTmplModal').addEventListener('click', closeTemplateEditor);
+document.getElementById('tmplOverlay').addEventListener('click', (e)=>{ if(e.target.id==='tmplOverlay') closeTemplateEditor(); });
+document.getElementById('tmplAddBtn').addEventListener('click', addTemplateItem);
+document.getElementById('tmplApplyAllBtn').addEventListener('click', applyTemplateToAllCampaigns);
+document.getElementById('closeModal').addEventListener('click', closeModal);
+document.getElementById('overlay').addEventListener('click', (e)=>{ if(e.target.id==='overlay') closeModal(); });
+document.getElementById('searchInput').addEventListener('input', render);
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    tab.classList.add('active');
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    document.getElementById('panel-'+tab.dataset.tab).classList.add('active');
+  });
+});
+document.querySelectorAll('.filter-chip').forEach(chip=>{
+  chip.addEventListener('click', ()=>{
+    document.querySelectorAll('.filter-chip').forEach(c=>c.classList.remove('active'));
+    chip.classList.add('active');
+    currentFilter = chip.dataset.filter;
+    render();
+  });
+});
+
+loadState();
+if(TOKEN){ setSyncStatus("Token saved — click sync to refresh"); }
+</script>
+</body>
+</html>
